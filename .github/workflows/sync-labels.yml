@@ -6,6 +6,7 @@ on:
     paths:
       - labels.yml
   workflow_dispatch:
+  workflow_call:
 
 jobs:
   sync:
