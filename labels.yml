@@ -1,70 +1,70 @@
 # GitHub Labels Configuration
 # 基于约定式提交规范的标签配置
 
-- name: feature
+- name: ✨ feature
   color: 00C851
   description: 新功能或新模块
   aliases:
     - enhancement
     - new-feature
 
-- name: bug
+- name: 🐛 bug
   color: FF4444
   description: 功能错误、异常问题
   aliases:
     - error
     - issue
 
-- name: idea
+- name: 💡 idea
   color: FFD700
   description: 仅在讨论阶段的想法或概念
   aliases:
     - suggestion
     - proposal
 
-- name: docs
+- name: 📚 docs
   color: 2196F3
   description: 文档编写、注释改进
   aliases:
     - documentation
     - readme
 
-- name: deps
+- name: 📦 deps
   color: 9E9E9E
   description: 第三方依赖、包版本、兼容性问题
   aliases:
     - dependencies
     - packages
 
-- name: release
+- name: 🚀 release
   color: E91E63
   description: 发布版本准备、变更记录、版本迭代
   aliases:
     - version
     - changelog
 
-- name: test
+- name: 🧪 test
   color: 4CAF50
   description: 测试相关
   aliases:
     - testing
     - coverage
 
-- name: infra
+- name: 🧰 infra
   color: 9C27B0
   description: 项目基础设施、CI/CD、构建脚本
   aliases:
     - infrastructure
     - ci-cd
 
-- name: cleanup
+- name: 🧹 cleanup
   color: 00695C
   description: 重构、移除冗余、架构优化
   aliases:
     - refactor
     - optimization
 
-- name: ui
+- name: 🎨 ui
   color: FF5722
   description: 前端界面或交互相关
   aliases:
