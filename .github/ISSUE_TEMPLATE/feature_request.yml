@@ -1,0 +1,49 @@
+name: ✨ 功能请求
+description: 建议一个新功能
+title: "[Feature] "
+labels: ["✨ feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢您提出功能建议！请填写以下信息帮助我们更好地理解您的需求。
+  - type: textarea
+    id: feature-description
+    attributes:
+      label: 功能描述
+      description: 请简洁地描述您希望添加的功能
+      placeholder: 描述您想要的功能...
+    validations:
+      required: true
+  - type: textarea
+    id: problem-solution
+    attributes:
+      label: 问题/解决方案
+      description: 这个功能解决了什么问题？或者提供了什么价值？
+      placeholder: 描述这个功能如何帮助用户或改善体验...
+    validations:
+      required: true
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: 建议的实现方案
+      description: 请描述您希望如何实现这个功能（可选）
+      placeholder: 描述您认为应该如何实现这个功能...
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 优先级
+      description: 您认为这个功能的优先级如何？
+      options:
+        - 低
+        - 中
+        - 高
+        - 紧急
+    validations:
+      required: true
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: 附加信息
+      description: 添加任何其他相关信息
+      placeholder: 参考链接、截图、相关讨论等...
