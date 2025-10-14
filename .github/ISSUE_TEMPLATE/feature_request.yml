@@ -1,7 +1,8 @@
 name: ✨ 功能请求
 description: 建议一个新功能
-title: "[Feature] "
+title: "[✨ Feature] "
 labels: ["✨ feature"]
+type: "Feature"
 body:
   - type: markdown
     attributes:
