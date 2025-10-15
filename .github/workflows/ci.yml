@@ -115,16 +115,72 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Setup Node
-        if: matrix.type == 'node'
+      - name: Setup Node (pnpm)
+        if: matrix.type == 'node' && hashFiles(format('{0}/pnpm-lock.yaml', matrix.dir)) != ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'pnpm'
+          cache-dependency-path: ${{ matrix.dir }}/pnpm-lock.yaml
+
+      - name: Setup Node (yarn)
+        if: matrix.type == 'node' && hashFiles(format('{0}/yarn.lock', matrix.dir)) != ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'yarn'
+          cache-dependency-path: ${{ matrix.dir }}/yarn.lock
+
+      - name: Setup Node (npm)
+        if: matrix.type == 'node' && (hashFiles(format('{0}/package-lock.json', matrix.dir)) != '' || (hashFiles(format('{0}/pnpm-lock.yaml', matrix.dir)) == '' && hashFiles(format('{0}/yarn.lock', matrix.dir)) == ''))
         uses: actions/setup-node@v4
         with:
           node-version: 'lts/*'
           cache: 'npm'
-          cache-dependency-path: |
-            ${{ matrix.dir }}/package-lock.json
-            ${{ matrix.dir }}/pnpm-lock.yaml
-            ${{ matrix.dir }}/yarn.lock
+          cache-dependency-path: ${{ matrix.dir }}/package-lock.json
+
+      - name: Detect package manager (Node)
+        if: matrix.type == 'node'
+        id: detect-npm
+        run: |
+          set -e
+          pm="npm"
+          if [ -f package.json ]; then
+            val=$(jq -r '.packageManager // empty' package.json || true)
+            case "$val" in
+              pnpm@* ) pm="pnpm" ;;
+              yarn@* ) pm="yarn" ;;
+              npm@*  ) pm="npm"  ;;
+            esac
+          fi
+          echo "pm=$pm" >> $GITHUB_OUTPUT
+
+      - name: Fallback cache for pnpm (no lockfile)
+        if: matrix.type == 'node' && steps.detect-npm.outputs.pm == 'pnpm' && hashFiles(format('{0}/pnpm-lock.yaml', matrix.dir)) == ''
+        uses: actions/cache@v4
+        with:
+          path: ~/.pnpm-store
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles(format('{0}/package.json', matrix.dir)) }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-
+
+      - name: Fallback cache for yarn (no lockfile)
+        if: matrix.type == 'node' && steps.detect-npm.outputs.pm == 'yarn' && hashFiles(format('{0}/yarn.lock', matrix.dir)) == ''
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/yarn
+          key: yarn-cache-${{ runner.os }}-${{ hashFiles(format('{0}/package.json', matrix.dir)) }}
+          restore-keys: |
+            yarn-cache-${{ runner.os }}-
+
+      - name: Fallback cache for npm (no lockfile)
+        if: matrix.type == 'node' && steps.detect-npm.outputs.pm == 'npm' && hashFiles(format('{0}/package-lock.json', matrix.dir)) == ''
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-cache-${{ runner.os }}-${{ hashFiles(format('{0}/package.json', matrix.dir)) }}
+          restore-keys: |
+            npm-cache-${{ runner.os }}-
 
       - name: Enable Corepack (Node)
         if: matrix.type == 'node'
