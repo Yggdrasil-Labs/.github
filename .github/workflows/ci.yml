@@ -150,28 +150,11 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Setup Node (pnpm cache)
-        if: matrix.type == 'node' && hashFiles(format('{0}/pnpm-lock.yaml', matrix.dir)) != ''
+      - name: Setup Node
+        if: matrix.type == 'node'
         uses: actions/setup-node@v4
         with:
           node-version: 'lts/*'
-          cache: 'pnpm'
-          cache-dependency-path: ${{ matrix.dir }}/pnpm-lock.yaml
-
-      - name: Setup Node (no cache)
-        if: matrix.type == 'node' && hashFiles(format('{0}/pnpm-lock.yaml', matrix.dir)) == ''
-        uses: actions/setup-node@v4
-        with:
-          node-version: 'lts/*'
-
-      - name: Fallback cache for pnpm (no lockfile)
-        if: matrix.type == 'node' && hashFiles(format('{0}/pnpm-lock.yaml', matrix.dir)) == ''
-        uses: actions/cache@v4
-        with:
-          path: ~/.pnpm-store
-          key: pnpm-store-${{ runner.os }}-${{ hashFiles(format('{0}/package.json', matrix.dir)) }}
-          restore-keys: |
-            pnpm-store-${{ runner.os }}-
 
       - name: Setup pnpm
         if: matrix.type == 'node'
@@ -179,7 +162,39 @@ jobs:
         with:
           version: ${{ steps.detect-pnpm.outputs.pnpm_version || '9' }}
 
-      # Ensure step already ran above prior to setup-node cache
+      - name: Ensure pnpm available
+        if: matrix.type == 'node'
+        env:
+          PNPM_VERSION: ${{ steps.detect-pnpm.outputs.pnpm_version }}
+        run: |
+          set -e
+          if ! command -v pnpm >/dev/null 2>&1; then
+            ver="${PNPM_VERSION:-9}"
+            corepack prepare pnpm@"$ver" --activate || true
+          fi
+          if ! command -v pnpm >/dev/null 2>&1; then
+            ver="${PNPM_VERSION:-9}"
+            npm i -g pnpm@"$ver"
+          fi
+          pnpm -v
+
+      - name: Cache pnpm store
+        if: matrix.type == 'node' && hashFiles(format('{0}/pnpm-lock.yaml', matrix.dir)) != ''
+        uses: actions/cache@v4
+        with:
+          path: ~/.pnpm-store
+          key: pnpm-${{ runner.os }}-${{ hashFiles(format('{0}/pnpm-lock.yaml', matrix.dir)) }}
+          restore-keys: |
+            pnpm-${{ runner.os }}-
+
+      - name: Cache pnpm store (no lockfile)
+        if: matrix.type == 'node' && hashFiles(format('{0}/pnpm-lock.yaml', matrix.dir)) == ''
+        uses: actions/cache@v4
+        with:
+          path: ~/.pnpm-store
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles(format('{0}/package.json', matrix.dir)) }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-
 
       - name: Install dependencies (Node)
         if: matrix.type == 'node'
