@@ -145,15 +145,21 @@ jobs:
         run: |
           set -e
           pm="npm"
+          pnpm_ver=""
           if [ -f package.json ]; then
             val=$(jq -r '.packageManager // empty' package.json || true)
             case "$val" in
-              pnpm@* ) pm="pnpm" ;;
+              pnpm@* ) pm="pnpm" ; pnpm_ver="${val#pnpm@}" ;;
               yarn@* ) pm="yarn" ;;
               npm@*  ) pm="npm"  ;;
             esac
           fi
           echo "pm=$pm" >> $GITHUB_OUTPUT
+          if [ "$pm" = "pnpm" ]; then
+            # fallback default if version missing
+            if [ -z "$pnpm_ver" ]; then pnpm_ver="9"; fi
+            echo "pnpm_version=$pnpm_ver" >> $GITHUB_OUTPUT
+          fi
 
       - name: Fallback cache for pnpm (no lockfile)
         if: matrix.type == 'node' && steps.detect-npm.outputs.pm == 'pnpm' && hashFiles(format('{0}/pnpm-lock.yaml', matrix.dir)) == ''
@@ -187,10 +193,27 @@ jobs:
         run: corepack enable
 
       - name: Setup pnpm
-        if: matrix.type == 'node' && hashFiles(format('{0}/pnpm-lock.yaml', matrix.dir)) != ''
+        if: matrix.type == 'node' && steps.detect-npm.outputs.pm == 'pnpm' && hashFiles(format('{0}/pnpm-lock.yaml', matrix.dir)) != ''
         uses: pnpm/action-setup@v4
         with:
-          version: 9
+          version: ${{ steps.detect-npm.outputs.pnpm_version || '9' }}
+
+      - name: Ensure pnpm available
+        if: matrix.type == 'node' && steps.detect-npm.outputs.pm == 'pnpm'
+        env:
+          PNPM_VERSION: ${{ steps.detect-npm.outputs.pnpm_version }}
+        run: |
+          set -e
+          if ! command -v pnpm >/dev/null 2>&1; then
+            corepack enable || true
+            ver="${PNPM_VERSION:-9}"
+            corepack prepare pnpm@"$ver" --activate || true
+          fi
+          if ! command -v pnpm >/dev/null 2>&1; then
+            ver="${PNPM_VERSION:-9}"
+            npm i -g pnpm@"$ver"
+          fi
+          pnpm -v
 
       - name: Install dependencies (Node)
         if: matrix.type == 'node'
