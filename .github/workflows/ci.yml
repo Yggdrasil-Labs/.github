@@ -159,8 +159,6 @@ jobs:
       - name: Setup pnpm
         if: matrix.type == 'node'
         uses: pnpm/action-setup@v4
-        with:
-          version: ${{ steps.detect-pnpm.outputs.pnpm_version || '9' }}
 
       - name: Ensure pnpm available
         if: matrix.type == 'node'
