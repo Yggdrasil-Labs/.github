@@ -1,0 +1,374 @@
+name: CI
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '.github/**'
+  pull_request:
+    branches:
+      - '**'
+  workflow_dispatch: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+permissions: read-all
+
+env:
+  CI: true
+
+jobs:
+  discover:
+    name: Discover projects
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.discovery.outputs.matrix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Discover subprojects (Node/Python/Go/Java/Flutter)
+        id: discovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s globstar nullglob
+          # Exclude .git, .github, node_modules and hidden dirs from search
+          is_ignored_dir() {
+            case "$1" in
+              */.git/*|.git|*/.github/*|.github|*/node_modules/*|node_modules|*/.venv/*|.venv|*/venv/*|venv) return 0 ;;
+              *) return 1 ;;
+            esac
+          }
+
+          add_entry() {
+            local type="$1"; shift
+            local dir="$1"; shift
+            entries+=("{\"type\":\"${type}\",\"dir\":\"${dir}\"}")
+          }
+
+          entries=()
+
+          # Node projects (package.json)
+          while IFS= read -r -d '' f; do
+            dir=$(dirname "$f")
+            if ! is_ignored_dir "$dir"; then add_entry node "$dir"; fi
+          done < <(find . -type f -name package.json -not -path "*/node_modules/*" -not -path "*/.github/*" -print0)
+
+          # Python projects (pyproject.toml or requirements.txt)
+          while IFS= read -r -d '' f; do
+            dir=$(dirname "$f")
+            if ! is_ignored_dir "$dir"; then add_entry python "$dir"; fi
+          done < <(find . -type f \( -name pyproject.toml -o -name requirements.txt -o -name requirements-dev.txt \) -not -path "*/.github/*" -print0)
+
+          # Go projects (go.mod)
+          while IFS= read -r -d '' f; do
+            dir=$(dirname "$f")
+            if ! is_ignored_dir "$dir"; then add_entry go "$dir"; fi
+          done < <(find . -type f -name go.mod -not -path "*/.github/*" -print0)
+
+          # Java projects (Maven/Gradle wrappers or build files)
+          while IFS= read -r -d '' f; do
+            dir=$(dirname "$f")
+            if ! is_ignored_dir "$dir"; then add_entry java "$dir"; fi
+          done < <(find . -type f \( -name mvnw -o -name gradlew -o -name pom.xml -o -name build.gradle -o -name build.gradle.kts \) -not -path "*/.github/*" -print0)
+
+          # Flutter/Dart projects (pubspec.yaml)
+          while IFS= read -r -d '' f; do
+            dir=$(dirname "$f")
+            if ! is_ignored_dir "$dir"; then add_entry flutter "$dir"; fi
+          done < <(find . -type f -name pubspec.yaml -not -path "*/.github/*" -print0)
+
+          # De-duplicate entries by (type, dir)
+          if [ ${#entries[@]} -gt 0 ]; then
+            json="["$(printf ",%s" "${entries[@]}")
+            json="${json:1}]"
+          else
+            json="[]"
+          fi
+
+          # Prefer unique directories with most specific type (e.g., node inside a python monorepo counted separately)
+          # Keep all entries to let matrix handle each independently.
+
+          matrix=$(jq -cn --argjson arr "$json" '{include: $arr}')
+          echo "Discovered matrix: $matrix"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+  ci:
+    name: CI (${{ matrix.type }} • ${{ matrix.dir }})
+    needs: discover
+    if: needs.discover.outputs.matrix != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
+    defaults:
+      run:
+        working-directory: ${{ matrix.dir }}
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        if: matrix.type == 'node'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'npm'
+          cache-dependency-path: |
+            ${{ matrix.dir }}/package-lock.json
+            ${{ matrix.dir }}/pnpm-lock.yaml
+            ${{ matrix.dir }}/yarn.lock
+
+      - name: Enable Corepack (Node)
+        if: matrix.type == 'node'
+        run: corepack enable
+
+      - name: Setup pnpm
+        if: matrix.type == 'node' && hashFiles(format('{0}/pnpm-lock.yaml', matrix.dir)) != ''
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies (Node)
+        if: matrix.type == 'node'
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            pnpm install --frozen-lockfile
+          elif [ -f yarn.lock ]; then
+            yarn install --frozen-lockfile
+          elif [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Lint (Node)
+        if: matrix.type == 'node'
+        run: |
+          if npm pkg get scripts.lint >/dev/null 2>&1; then
+            npm run -s lint
+          elif [ -f node_modules/.bin/eslint ]; then
+            npx eslint .
+          else
+            echo "No lint configured; skipping."
+          fi
+
+      - name: Test (Node)
+        if: matrix.type == 'node'
+        run: |
+          if npm pkg get scripts.test >/dev/null 2>&1; then
+            npm test -- --coverage
+          elif [ -f node_modules/.bin/jest ]; then
+            npx jest --coverage
+          else
+            echo "No tests configured; skipping."
+          fi
+
+      - name: Build (Node)
+        if: matrix.type == 'node'
+        run: |
+          if npm pkg get scripts.build >/dev/null 2>&1; then
+            npm run -s build
+          else
+            echo "No build configured; skipping."
+          fi
+
+      - name: Upload coverage (Node)
+        if: matrix.type == 'node' && hashFiles(format('{0}/coverage/lcov.info', matrix.dir)) != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-node-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.dir }}
+          path: |
+            coverage/
+          if-no-files-found: ignore
+
+      - name: Upload dist (Node)
+        if: matrix.type == 'node' && hashFiles(format('{0}/dist/**', matrix.dir)) != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-node-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.dir }}
+          path: |
+            dist/
+          if-no-files-found: ignore
+
+      - name: Setup Python
+        if: matrix.type == 'python'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Compute requirements hash
+        if: matrix.type == 'python'
+        id: py-reqs
+        run: |
+          set -e
+          files=$(ls -1 requirements*.txt 2>/dev/null || true)
+          if [ -f pyproject.toml ]; then files="$files pyproject.toml"; fi
+          if [ -z "$files" ]; then echo "hash=none" >> $GITHUB_OUTPUT; else
+            printf "hash=%s" "$(sha256sum $files | sha256sum | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Cache pip
+        if: matrix.type == 'python'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ${{ matrix.dir }}/.venv
+          key: pip-${{ runner.os }}-${{ steps.py-reqs.outputs.hash || 'nohash' }}
+          restore-keys: |
+            pip-${{ runner.os }}-
+
+      - name: Install dependencies (Python)
+        if: matrix.type == 'python'
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          python -m pip install -U pip
+          if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f pyproject.toml ]; then pip install .; fi
+
+      - name: Lint (Python)
+        if: matrix.type == 'python'
+        run: |
+          source .venv/bin/activate
+          if python -c "import importlib.util,sys; sys.exit(0 if importlib.util.find_spec('ruff') else 1)"; then
+            ruff check .
+          elif python -c "import importlib.util,sys; sys.exit(0 if importlib.util.find_spec('flake8') else 1)"; then
+            flake8 .
+          else
+            echo "No Python linter installed; skipping."
+          fi
+
+      - name: Test (Python)
+        if: matrix.type == 'python'
+        run: |
+          source .venv/bin/activate
+          if python -c "import importlib.util,sys; sys.exit(0 if importlib.util.find_spec('pytest') else 1)"; then
+            pytest -q --maxfail=1 --disable-warnings --cov=. --cov-report=xml
+          else
+            echo "pytest not installed; skipping tests."
+          fi
+
+      - name: Build (Python)
+        if: matrix.type == 'python'
+        run: |
+          source .venv/bin/activate
+          if python -c "import importlib.util,sys; sys.exit(0 if importlib.util.find_spec('build') else 1)"; then
+            python -m build
+          else
+            echo "build module not installed; skipping build."
+          fi
+
+      - name: Upload coverage (Python)
+        if: matrix.type == 'python' && hashFiles(format('{0}/coverage.xml', matrix.dir)) != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-python-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.dir }}
+          path: coverage.xml
+          if-no-files-found: ignore
+
+      - name: Upload dist (Python)
+        if: matrix.type == 'python' && hashFiles(format('{0}/dist/**', matrix.dir)) != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-python-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.dir }}
+          path: dist/
+          if-no-files-found: ignore
+
+      - name: Setup Go
+        if: matrix.type == 'go'
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22.x'
+          cache: true
+
+      - name: Lint (Go)
+        if: matrix.type == 'go'
+        run: |
+          go vet ./...
+
+      - name: Test (Go)
+        if: matrix.type == 'go'
+        run: |
+          go test ./... -race -coverprofile=coverage.out -covermode=atomic
+
+      - name: Build (Go)
+        if: matrix.type == 'go'
+        run: |
+          go build ./...
+
+      - name: Upload coverage (Go)
+        if: matrix.type == 'go' && hashFiles(format('{0}/coverage.out', matrix.dir)) != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-go-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.dir }}
+          path: coverage.out
+          if-no-files-found: ignore
+
+      - name: Setup Java
+        if: matrix.type == 'java'
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'maven'
+
+      - name: Build & Test (Maven)
+        if: matrix.type == 'java' && (hashFiles(format('{0}/mvnw', matrix.dir)) != '' || hashFiles(format('{0}/pom.xml', matrix.dir)) != '')
+        run: |
+          if [ -f mvnw ]; then chmod +x mvnw; ./mvnw -B -ntp verify; else mvn -B -ntp verify; fi
+
+      - name: Build & Test (Gradle)
+        if: matrix.type == 'java' && (hashFiles(format('{0}/gradlew', matrix.dir)) != '' || hashFiles(format('{0}/build.gradle', matrix.dir)) != '' || hashFiles(format('{0}/build.gradle.kts', matrix.dir)) != '')
+        run: |
+          if [ -f gradlew ]; then chmod +x gradlew; ./gradlew build --no-daemon; else gradle build --no-daemon; fi
+
+      - name: Upload jars (Java)
+        if: matrix.type == 'java' && (hashFiles(format('{0}/target/*.jar', matrix.dir)) != '' || hashFiles(format('{0}/build/libs/*.jar', matrix.dir)) != '')
+        uses: actions/upload-artifact@v4
+        with:
+          name: java-artifacts-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.dir }}
+          path: |
+            target/*.jar
+            build/libs/*.jar
+          if-no-files-found: ignore
+
+      - name: Setup Flutter
+        if: matrix.type == 'flutter'
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Flutter deps
+        if: matrix.type == 'flutter'
+        run: flutter pub get
+
+      - name: Analyze (Flutter/Dart)
+        if: matrix.type == 'flutter'
+        run: |
+          flutter analyze
+          dart format --output=none --set-exit-if-changed .
+
+      - name: Test (Flutter)
+        if: matrix.type == 'flutter'
+        run: flutter test --coverage
+
+      - name: Upload coverage (Flutter)
+        if: matrix.type == 'flutter' && hashFiles(format('{0}/coverage/lcov.info', matrix.dir)) != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-flutter-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.dir }}
+          path: coverage/
+          if-no-files-found: ignore
+
+
