@@ -37,7 +37,8 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s globstar nullglob
-          # Exclude .git, .github, node_modules and hidden dirs from search
+
+          # Helper: filter ignored directories
           is_ignored_dir() {
             case "$1" in
               */.git/*|.git|*/.github/*|.github|*/node_modules/*|node_modules|*/.venv/*|.venv|*/venv/*|venv) return 0 ;;
@@ -45,13 +46,14 @@ jobs:
             esac
           }
 
+          tmp_entries="$(mktemp)"
+
           add_entry() {
             local type="$1"; shift
             local dir="$1"; shift
-            entries+=("{\"type\":\"${type}\",\"dir\":\"${dir}\"}")
+            # Use jq to safely build a JSON object per line
+            jq -nc --arg type "$type" --arg dir "$dir" '{type:$type, dir:$dir}' >> "$tmp_entries"
           }
-
-          entries=()
 
           # Node projects (package.json)
           while IFS= read -r -d '' f; do
@@ -59,7 +61,7 @@ jobs:
             if ! is_ignored_dir "$dir"; then add_entry node "$dir"; fi
           done < <(find . -type f -name package.json -not -path "*/node_modules/*" -not -path "*/.github/*" -print0)
 
-          # Python projects (pyproject.toml or requirements.txt)
+          # Python projects (pyproject.toml or requirements*.txt)
           while IFS= read -r -d '' f; do
             dir=$(dirname "$f")
             if ! is_ignored_dir "$dir"; then add_entry python "$dir"; fi
@@ -83,16 +85,12 @@ jobs:
             if ! is_ignored_dir "$dir"; then add_entry flutter "$dir"; fi
           done < <(find . -type f -name pubspec.yaml -not -path "*/.github/*" -print0)
 
-          # De-duplicate entries by (type, dir)
-          if [ ${#entries[@]} -gt 0 ]; then
-            json="["$(printf ",%s" "${entries[@]}")
-            json="${json:1}]"
+          # Aggregate and de-duplicate entries
+          if [ -s "$tmp_entries" ]; then
+            json=$(jq -s 'unique_by(.type + ":" + .dir)' "$tmp_entries")
           else
-            json="[]"
+            json='[]'
           fi
-
-          # Prefer unique directories with most specific type (e.g., node inside a python monorepo counted separately)
-          # Keep all entries to let matrix handle each independently.
 
           matrix=$(jq -cn --argjson arr "$json" '{include: $arr}')
           echo "Discovered matrix: $matrix"
