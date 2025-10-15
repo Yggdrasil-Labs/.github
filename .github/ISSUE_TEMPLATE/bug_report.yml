@@ -1,6 +1,6 @@
 name: 🐛 Bug 报告
 description: 报告一个 bug
-title: "[🐛 Bug] "
+title: "🐛 Bug: "
 labels: ["🐛 bug"]
 type: "Bug"
 body:
