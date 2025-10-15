@@ -31,6 +31,41 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: false
+
+      - name: Detect pnpm version
+        if: matrix.type == 'node'
+        id: detect-pnpm
+        run: |
+          set -e
+          pnpm_ver=""
+          if [ -f package.json ]; then
+            val=$(jq -r '.packageManager // empty' package.json || true)
+            case "$val" in
+              pnpm@* ) pnpm_ver="${val#pnpm@}" ;;
+            esac
+          fi
+          if [ -z "$pnpm_ver" ]; then pnpm_ver="9"; fi
+          echo "pnpm_version=$pnpm_ver" >> $GITHUB_OUTPUT
+
+      - name: Enable Corepack (Node)
+        if: matrix.type == 'node'
+        run: corepack enable
+
+      - name: Ensure pnpm available (pre-cache)
+        if: matrix.type == 'node'
+        env:
+          PNPM_VERSION: ${{ steps.detect-pnpm.outputs.pnpm_version }}
+        run: |
+          set -e
+          if ! command -v pnpm >/dev/null 2>&1; then
+            ver="${PNPM_VERSION:-9}"
+            corepack prepare pnpm@"$ver" --activate || true
+          fi
+          if ! command -v pnpm >/dev/null 2>&1; then
+            ver="${PNPM_VERSION:-9}"
+            npm i -g pnpm@"$ver"
+          fi
+          pnpm -v
       - name: Discover subprojects (Node/Python/Go/Java/Flutter)
         id: discovery
         shell: bash
@@ -115,7 +150,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Setup Node (pnpm)
+      - name: Setup Node (pnpm cache)
         if: matrix.type == 'node' && hashFiles(format('{0}/pnpm-lock.yaml', matrix.dir)) != ''
         uses: actions/setup-node@v4
         with:
@@ -123,46 +158,14 @@ jobs:
           cache: 'pnpm'
           cache-dependency-path: ${{ matrix.dir }}/pnpm-lock.yaml
 
-      - name: Setup Node (yarn)
-        if: matrix.type == 'node' && hashFiles(format('{0}/yarn.lock', matrix.dir)) != ''
+      - name: Setup Node (no cache)
+        if: matrix.type == 'node' && hashFiles(format('{0}/pnpm-lock.yaml', matrix.dir)) == ''
         uses: actions/setup-node@v4
         with:
           node-version: 'lts/*'
-          cache: 'yarn'
-          cache-dependency-path: ${{ matrix.dir }}/yarn.lock
-
-      - name: Setup Node (npm)
-        if: matrix.type == 'node' && (hashFiles(format('{0}/package-lock.json', matrix.dir)) != '' || (hashFiles(format('{0}/pnpm-lock.yaml', matrix.dir)) == '' && hashFiles(format('{0}/yarn.lock', matrix.dir)) == ''))
-        uses: actions/setup-node@v4
-        with:
-          node-version: 'lts/*'
-          cache: 'npm'
-          cache-dependency-path: ${{ matrix.dir }}/package-lock.json
-
-      - name: Detect package manager (Node)
-        if: matrix.type == 'node'
-        id: detect-npm
-        run: |
-          set -e
-          pm="npm"
-          pnpm_ver=""
-          if [ -f package.json ]; then
-            val=$(jq -r '.packageManager // empty' package.json || true)
-            case "$val" in
-              pnpm@* ) pm="pnpm" ; pnpm_ver="${val#pnpm@}" ;;
-              yarn@* ) pm="yarn" ;;
-              npm@*  ) pm="npm"  ;;
-            esac
-          fi
-          echo "pm=$pm" >> $GITHUB_OUTPUT
-          if [ "$pm" = "pnpm" ]; then
-            # fallback default if version missing
-            if [ -z "$pnpm_ver" ]; then pnpm_ver="9"; fi
-            echo "pnpm_version=$pnpm_ver" >> $GITHUB_OUTPUT
-          fi
 
       - name: Fallback cache for pnpm (no lockfile)
-        if: matrix.type == 'node' && steps.detect-npm.outputs.pm == 'pnpm' && hashFiles(format('{0}/pnpm-lock.yaml', matrix.dir)) == ''
+        if: matrix.type == 'node' && hashFiles(format('{0}/pnpm-lock.yaml', matrix.dir)) == ''
         uses: actions/cache@v4
         with:
           path: ~/.pnpm-store
@@ -170,71 +173,28 @@ jobs:
           restore-keys: |
             pnpm-store-${{ runner.os }}-
 
-      - name: Fallback cache for yarn (no lockfile)
-        if: matrix.type == 'node' && steps.detect-npm.outputs.pm == 'yarn' && hashFiles(format('{0}/yarn.lock', matrix.dir)) == ''
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/yarn
-          key: yarn-cache-${{ runner.os }}-${{ hashFiles(format('{0}/package.json', matrix.dir)) }}
-          restore-keys: |
-            yarn-cache-${{ runner.os }}-
-
-      - name: Fallback cache for npm (no lockfile)
-        if: matrix.type == 'node' && steps.detect-npm.outputs.pm == 'npm' && hashFiles(format('{0}/package-lock.json', matrix.dir)) == ''
-        uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: npm-cache-${{ runner.os }}-${{ hashFiles(format('{0}/package.json', matrix.dir)) }}
-          restore-keys: |
-            npm-cache-${{ runner.os }}-
-
-      - name: Enable Corepack (Node)
-        if: matrix.type == 'node'
-        run: corepack enable
-
       - name: Setup pnpm
-        if: matrix.type == 'node' && steps.detect-npm.outputs.pm == 'pnpm' && hashFiles(format('{0}/pnpm-lock.yaml', matrix.dir)) != ''
+        if: matrix.type == 'node'
         uses: pnpm/action-setup@v4
         with:
-          version: ${{ steps.detect-npm.outputs.pnpm_version || '9' }}
+          version: ${{ steps.detect-pnpm.outputs.pnpm_version || '9' }}
 
-      - name: Ensure pnpm available
-        if: matrix.type == 'node' && steps.detect-npm.outputs.pm == 'pnpm'
-        env:
-          PNPM_VERSION: ${{ steps.detect-npm.outputs.pnpm_version }}
-        run: |
-          set -e
-          if ! command -v pnpm >/dev/null 2>&1; then
-            corepack enable || true
-            ver="${PNPM_VERSION:-9}"
-            corepack prepare pnpm@"$ver" --activate || true
-          fi
-          if ! command -v pnpm >/dev/null 2>&1; then
-            ver="${PNPM_VERSION:-9}"
-            npm i -g pnpm@"$ver"
-          fi
-          pnpm -v
+      # Ensure step already ran above prior to setup-node cache
 
       - name: Install dependencies (Node)
         if: matrix.type == 'node'
         run: |
           if [ -f pnpm-lock.yaml ]; then
             pnpm install --frozen-lockfile
-          elif [ -f yarn.lock ]; then
-            yarn install --frozen-lockfile
-          elif [ -f package-lock.json ]; then
-            npm ci
           else
-            npm install
+            pnpm install --no-frozen-lockfile
           fi
 
       - name: Lint (Node)
         if: matrix.type == 'node'
         run: |
-          if npm pkg get scripts.lint >/dev/null 2>&1; then
-            npm run -s lint
-          elif [ -f node_modules/.bin/eslint ]; then
-            npx eslint .
+          if jq -e '.scripts.lint' package.json >/dev/null 2>&1; then
+            pnpm run -s lint
           else
             echo "No lint configured; skipping."
           fi
@@ -242,10 +202,8 @@ jobs:
       - name: Test (Node)
         if: matrix.type == 'node'
         run: |
-          if npm pkg get scripts.test >/dev/null 2>&1; then
-            npm test -- --coverage
-          elif [ -f node_modules/.bin/jest ]; then
-            npx jest --coverage
+          if jq -e '.scripts.test' package.json >/dev/null 2>&1; then
+            pnpm test -- --coverage || pnpm run -s test -- --coverage || pnpm run -s test
           else
             echo "No tests configured; skipping."
           fi
@@ -253,8 +211,8 @@ jobs:
       - name: Build (Node)
         if: matrix.type == 'node'
         run: |
-          if npm pkg get scripts.build >/dev/null 2>&1; then
-            npm run -s build
+          if jq -e '.scripts.build' package.json >/dev/null 2>&1; then
+            pnpm run -s build
           else
             echo "No build configured; skipping."
           fi
