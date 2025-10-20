@@ -103,6 +103,8 @@ jobs:
             pushd "$tmpdir" >/dev/null
             gh repo clone "$ORG/$repo" . -- -q
             git checkout -B "$branch_name" "origin/$base_branch" || git checkout -B "$branch_name"
+            # configure authenticated remote for push
+            git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${ORG}/${repo}.git"
             mkdir -p .github
             cp -f "$GITHUB_WORKSPACE/.github/dependabot.yml" .github/dependabot.yml
             if git status --porcelain | grep -q .; then
