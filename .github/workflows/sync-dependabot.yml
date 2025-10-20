@@ -1,0 +1,120 @@
+name: Sync Dependabot config to org repos
+
+on:
+  workflow_dispatch:
+    inputs:
+      org:
+        description: "GitHub Organization name"
+        required: true
+        default: "Yggdrasil-Labs"
+      include:
+        description: "Comma-separated repo name patterns to include (supports substring match)"
+        required: false
+        default: ""
+      exclude:
+        description: "Comma-separated repo name patterns to exclude (supports substring match)"
+        required: false
+        default: ""
+      dry_run:
+        description: "Do not create PRs, only print plan"
+        required: false
+        default: "true"
+  push:
+    branches: [ main ]
+    paths:
+      - '.github/dependabot.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.run_id }}
+  cancel-in-progress: true
+
+permissions: read-all
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # gh CLI is preinstalled on ubuntu-latest runners
+      - name: Check gh CLI
+        run: gh --version
+
+      - name: Compute targets
+        id: plan
+        env:
+          ORG: ${{ github.event.inputs.org || 'Yggdrasil-Labs' }}
+          INCLUDE: ${{ github.event.inputs.include || '' }}
+          EXCLUDE: ${{ github.event.inputs.exclude || '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Listing repositories for org: $ORG" >&2
+          repos=$(gh repo list "$ORG" --limit 200 --json name,isPrivate,archived --jq '.[] | select(.archived==false) | .name')
+          include_patterns=$(echo "$INCLUDE" | tr ',' '\n' | sed '/^\s*$/d' || true)
+          exclude_patterns=$(echo "$EXCLUDE" | tr ',' '\n' | sed '/^\s*$/d' || true)
+          filtered=()
+          for r in $repos; do
+            ok=1
+            if [ -n "$include_patterns" ]; then
+              ok=0
+              while IFS= read -r p; do
+                if [[ "$r" == *"$p"* ]]; then ok=1; break; fi
+              done <<< "$include_patterns"
+            fi
+            if [ $ok -eq 1 ] && [ -n "$exclude_patterns" ]; then
+              while IFS= read -r p; do
+                if [[ "$r" == *"$p"* ]]; then ok=0; break; fi
+              done <<< "$exclude_patterns"
+            fi
+            if [ $ok -eq 1 ]; then filtered+=("$r"); fi
+          done
+          jq -n --argjson arr "$(printf '%s\n' "${filtered[@]}" | jq -R . | jq -s .)" '{repos:$arr}' | tee plan.json
+          echo "count=${#filtered[@]}" >> "$GITHUB_OUTPUT"
+
+      - name: Show plan
+        run: |
+          echo "Target repos: $(jq -r '.repos|length' plan.json)"
+          jq -r '.repos[]' plan.json | sed 's/^/- /'
+
+      - name: Sync dependabot.yml to each repo
+        if: ${{ (github.event.inputs.dry_run || 'true') != 'true' }}
+        env:
+          ORG: ${{ github.event.inputs.org || 'Yggdrasil-Labs' }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          base_branch="main"
+          branch_name="chore/sync-dependabot-$(date +%Y%m%d)-${{ github.run_id }}"
+          title="chore(dep): sync dependabot configuration"
+          body="Sync .github/dependabot.yml from org templates"
+          while IFS= read -r repo; do
+            echo "Processing $repo" >&2
+            tmpdir=$(mktemp -d)
+            pushd "$tmpdir" >/dev/null
+            gh repo clone "$ORG/$repo" . -- -q
+            git checkout -B "$branch_name" "origin/$base_branch" || git checkout -B "$branch_name"
+            mkdir -p .github
+            cp -f "$GITHUB_WORKSPACE/.github/dependabot.yml" .github/dependabot.yml
+            if git status --porcelain | grep -q .; then
+              git add .github/dependabot.yml
+              git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "chore(deps): sync dependabot.yml"
+              git push -f origin "$branch_name"
+              # Create PR or update existing
+              gh pr create --title "$title" --body "$body" --base "$base_branch" --head "$branch_name" || gh pr view --web || true
+            else
+              echo "No changes for $repo" >&2
+            fi
+            popd >/dev/null
+            rm -rf "$tmpdir"
+          done < <(jq -r '.repos[]' plan.json)
+
+
