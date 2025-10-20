@@ -53,7 +53,7 @@ jobs:
           ORG: ${{ github.event.inputs.org || 'Yggdrasil-Labs' }}
           INCLUDE: ${{ github.event.inputs.include || '' }}
           EXCLUDE: ${{ github.event.inputs.exclude || '' }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.ORG_SYNC_TOKEN || secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
@@ -89,7 +89,7 @@ jobs:
         if: ${{ (github.event.inputs.dry_run || 'true') != 'true' }}
         env:
           ORG: ${{ github.event.inputs.org || 'Yggdrasil-Labs' }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.ORG_SYNC_TOKEN || secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
