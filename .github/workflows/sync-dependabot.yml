@@ -58,7 +58,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "Listing repositories for org: $ORG" >&2
-          repos=$(gh repo list "$ORG" --limit 200 --json name,isPrivate,archived --jq '.[] | select(.archived==false) | .name')
+          repos=$(gh repo list "$ORG" --limit 200 --json name,archivedAt --jq '.[] | select(.archivedAt==null) | .name')
           include_patterns=$(echo "$INCLUDE" | tr ',' '\n' | sed '/^\s*$/d' || true)
           exclude_patterns=$(echo "$EXCLUDE" | tr ',' '\n' | sed '/^\s*$/d' || true)
           filtered=()
