@@ -8,8 +8,7 @@ We build unified, modular foundations for modern software — across **frontend*
 ---
 
 ### 🧩 Vision
-To create a self-sustaining, extensible development ecosystem —  
-where each branch represents a distinct yet connected realm of innovation.
+To create a self-sustaining, extensible development ecosystem — where each branch represents a distinct yet connected realm of innovation.
 
 ---
 
@@ -19,8 +18,8 @@ where each branch represents a distinct yet connected realm of innovation.
 |--------|-------------|-------------|
 | 📚 **Docs** | [`docs`](https://github.com/Yggdrasil-Labs/docs) | Unified documentation & architecture blueprints |
 | 🔧 **Tools** | [`tools`](https://github.com/Yggdrasil-Labs/tools) | Shared development tools & scripts |
-| 🎨 **Frontend** | [`frontend`](https://github.com/Yggdrasil-Labs/frontend) | Modern frontend frameworks & component libraries |
-| ⚙️ **Backend** | [`backend`](https://github.com/Yggdrasil-Labs/backend) | Microservices & API infrastructure |
+| 🎨 **Frontend** | [`asgard-frontend-template`](https://github.com/Yggdrasil-Labs/asgard-frontend-template) | Modern frontend frameworks & component libraries |
+| ⚙️ **Backend** | [`midgard-backend-template`](https://github.com/Yggdrasil-Labs/midgard-backend-template) | Microservices & API infrastructure |
 | 📱 **Mobile** | [`mobile`](https://github.com/Yggdrasil-Labs/mobile) | Cross-platform mobile app development |
 | 🤖 **AI** | [`ai`](https://github.com/Yggdrasil-Labs/ai) | Artificial intelligence & machine learning tools |
 

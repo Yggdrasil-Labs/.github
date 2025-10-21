@@ -10,14 +10,14 @@
 
 ```
 .github/
-├── profile/                    # 组织 Profile README
+├── profile/                     # 组织 Profile README
 ├── .github/
-│   ├── dependabot.yml         # Dependabot 依赖更新配置
-│   └── workflows/             # GitHub Actions 工作流
-│       ├── ci.yml              # 统一 CI/CD 工作流
-│       └── sync-dependabot.yml # Dependabot 配置同步
-├── labels.yml                  # 统一标签配置
-└── README.md                   # 本文件
+│   ├── dependabot.yml           # Dependabot 依赖更新配置
+│   └── workflows/               # GitHub Actions 工作流
+│       ├── ci.yml               # 统一 CI/CD 工作流
+│       └── sync-dependabot.yml  # Dependabot 配置同步
+├── labels.yml                   # 统一标签配置
+└── README.md                    # 本文件
 ```
 
 ---
