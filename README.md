@@ -10,14 +10,14 @@
 
 ```
 .github/
-├── profile/           # 组织 Profile README
-├── workflows/         # GitHub Actions 工作流
-├── ISSUE_TEMPLATE/    # Issue 模板
-├── PULL_REQUEST_TEMPLATE/  # PR 模板
-├── CODEOWNERS         # 代码所有者配置
-├── CONTRIBUTING.md    # 贡献指南
-├── SECURITY.md        # 安全政策
-└── README.md          # 本文件
+├── profile/                    # 组织 Profile README
+├── .github/
+│   ├── dependabot.yml         # Dependabot 依赖更新配置
+│   └── workflows/             # GitHub Actions 工作流
+│       ├── ci.yml              # 统一 CI/CD 工作流
+│       └── sync-dependabot.yml # Dependabot 配置同步
+├── labels.yml                  # 统一标签配置
+└── README.md                   # 本文件
 ```
 
 ---
@@ -25,20 +25,20 @@
 ## 🚀 功能特性
 
 ### 🔄 CI/CD 工作流
-- **自动化测试**: 统一的测试流程和代码质量检查
-- **自动部署**: 标准化的部署流程
-- **依赖更新**: 自动化的依赖管理和安全更新
-- **发布管理**: 统一的版本发布和变更日志生成
+- **统一 CI**: 支持 Node.js、Python、Go、Java、Flutter 等多语言项目的自动化测试和构建
+- **智能发现**: 自动检测项目类型并运行相应的 CI 流程
+- **依赖管理**: 通过 Dependabot 自动更新依赖，支持多种包管理器
+- **配置同步**: 自动将 Dependabot 配置同步到组织内所有仓库
 
-### 📋 模板系统
-- **Issue 模板**: 标准化的 bug 报告和功能请求模板
-- **PR 模板**: 统一的代码审查和合并流程
-- **项目模板**: 快速创建新项目的标准化模板
+### 🏷️ 标签系统
+- **统一标签**: 基于约定式提交规范的标签配置
+- **语义化分类**: 支持功能、Bug、文档、依赖、发布等多种类型
+- **自动应用**: 与 Dependabot 和 CI 工作流集成，自动应用相应标签
 
-### 📖 文档标准
-- **贡献指南**: 详细的贡献流程和代码规范
-- **安全政策**: 安全漏洞报告和处理流程
-- **代码所有者**: 自动化的代码审查分配
+### 📖 组织标准
+- **代码规范**: 遵循 Conventional Commits 提交规范
+- **多语言支持**: 统一支持主流编程语言的开发流程
+- **自动化运维**: 减少手动配置，提高开发效率
 
 ---
 
@@ -46,33 +46,37 @@
 
 ### 为新项目应用配置
 
-1. **复制工作流文件**:
+1. **复制 CI 工作流**:
    ```bash
-   cp .github/workflows/* your-project/.github/workflows/
+   cp .github/workflows/ci.yml your-project/.github/workflows/
    ```
 
-2. **应用模板**:
+2. **应用 Dependabot 配置**:
    ```bash
-   cp .github/ISSUE_TEMPLATE/* your-project/.github/ISSUE_TEMPLATE/
-   cp .github/PULL_REQUEST_TEMPLATE/* your-project/.github/PULL_REQUEST_TEMPLATE/
+   cp .github/dependabot.yml your-project/.github/
    ```
 
-3. **配置代码所有者**:
+3. **应用标签配置**:
    ```bash
-   cp .github/CODEOWNERS your-project/.github/
+   cp labels.yml your-project/.github/
    ```
+
+### 自动同步配置
+
+- **Dependabot 配置**: 使用 `sync-dependabot.yml` 工作流可以自动将 Dependabot 配置同步到组织内所有仓库
+- **CI 工作流**: 建议每个项目都使用统一的 `ci.yml` 工作流，支持多语言项目自动检测
 
 ### 自定义配置
 
-每个项目可以根据需要自定义这些配置，但建议保持核心结构的一致性。
+每个项目可以根据需要自定义这些配置，但建议保持核心结构的一致性，特别是 CI 工作流和标签系统。
 
 ---
 
 ## 📚 相关文档
 
-- [贡献指南](CONTRIBUTING.md) - 如何为项目做贡献
-- [安全政策](SECURITY.md) - 安全漏洞报告流程
 - [组织 Profile](profile/README.md) - Yggdrasil-Labs 组织介绍
+- [标签配置](labels.yml) - 统一标签定义和使用说明
+- [Dependabot 配置](.github/dependabot.yml) - 依赖更新自动化配置
 
 ---
 
