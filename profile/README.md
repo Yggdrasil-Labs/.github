@@ -36,8 +36,7 @@ To create a self-sustaining, extensible development ecosystem — where each bra
 ### 🌌 Philosophy
 > _"Yggdrasil connects all worlds — so should great software."_
 
-Every project under this organization grows from a shared root,  
-yet extends outward freely — scalable, consistent, and alive.
+Every project under this organization grows from a shared root, yet extends outward freely — scalable, consistent, and alive.
 
 ---
 
