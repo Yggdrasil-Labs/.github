@@ -158,7 +158,7 @@ jobs:
 
       - name: Setup pnpm
         if: matrix.type == 'node'
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061
 
       - name: Ensure pnpm available
         if: matrix.type == 'node'
@@ -394,7 +394,7 @@ jobs:
 
       - name: Setup Flutter
         if: matrix.type == 'flutter'
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@fd55f4c5af5b953cc57a2be44cb082c8f6635e8e
         with:
           channel: 'stable'
 
