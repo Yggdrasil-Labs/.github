@@ -232,7 +232,7 @@ jobs:
 
       - name: Upload coverage (Node)
         if: matrix.type == 'node' && hashFiles(format('{0}/coverage/lcov.info', matrix.dir)) != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: coverage-node-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.dir }}
           path: |
@@ -241,7 +241,7 @@ jobs:
 
       - name: Upload dist (Node)
         if: matrix.type == 'node' && hashFiles(format('{0}/dist/**', matrix.dir)) != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: dist-node-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.dir }}
           path: |
@@ -320,7 +320,7 @@ jobs:
 
       - name: Upload coverage (Python)
         if: matrix.type == 'python' && hashFiles(format('{0}/coverage.xml', matrix.dir)) != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: coverage-python-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.dir }}
           path: coverage.xml
@@ -328,7 +328,7 @@ jobs:
 
       - name: Upload dist (Python)
         if: matrix.type == 'python' && hashFiles(format('{0}/dist/**', matrix.dir)) != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: dist-python-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.dir }}
           path: dist/
@@ -358,7 +358,7 @@ jobs:
 
       - name: Upload coverage (Go)
         if: matrix.type == 'go' && hashFiles(format('{0}/coverage.out', matrix.dir)) != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: coverage-go-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.dir }}
           path: coverage.out
@@ -384,7 +384,7 @@ jobs:
 
       - name: Upload jars (Java)
         if: matrix.type == 'java' && (hashFiles(format('{0}/target/*.jar', matrix.dir)) != '' || hashFiles(format('{0}/build/libs/*.jar', matrix.dir)) != '')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: java-artifacts-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.dir }}
           path: |
@@ -414,7 +414,7 @@ jobs:
 
       - name: Upload coverage (Flutter)
         if: matrix.type == 'flutter' && hashFiles(format('{0}/coverage/lcov.info', matrix.dir)) != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: coverage-flutter-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.dir }}
           path: coverage/
